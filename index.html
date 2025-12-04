@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Calculadora de Voo OGame</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Calculadora de Voo OGame</h1>
+    <div class="version">FlightCalc v2.0</div>
+  </header>
+
+  <main class="container">
+
+        <section class="block">
+      <h2>1) Configuração do Universo</h2>
+
+      <div class="grid g2">
+        <label class="field">
+          <span>Comunidade</span>
+          <select id="select-community">
+            <option value="">Seleciona a comunidade</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Universo</span>
+          <select id="select-universe">
+            <option value="">Seleciona o universo</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid g3 info-cards">
+        <div class="card">
+          <div class="card-title">Vel. Frota (Amigáveis)</div>
+          <div id="fleet-speed-peaceful" class="mono">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Vel. Frota (Hostis)</div>
+          <div id="fleet-speed-war" class="mono">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Vel. Frota (Manter)</div>
+          <div id="fleet-speed-holding" class="mono">—</div>
+        </div>
+      </div>
+
+      <div class="grid g4 info-cards">
+        <div class="card">
+          <div class="card-title">Galáxias</div>
+          <div id="universe-galaxies" class="mono">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Sistemas/Galáxia</div>
+          <div id="universe-systems" class="mono">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Galáxias Circulares</div>
+          <div id="donut-galaxy" class="badge">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Sistemas Circulares</div>
+          <div id="donut-system" class="badge">—</div>
+        </div>
+      </div>
+    </section>
+
+        <section class="block">
+      <h2>2) Importação via API</h2>
+      <div class="grid g3">
+        <label class="field span2">
+          <span>SR Key</span>
+          <input id="api-code" placeholder="sr-pt-160-xxxxxxxx..." />
+        </label>
+        <div class="btns">
+          <button id="api-import-json">Importar JSON</button>
+          <button id="api-import-trashsim">Importar TrashSim</button>
+          <button id="api-open" class="ghost">Abrir JSON</button>
+        </div>
+      </div>
+      <p class="hint">
+        O botão <b>Abrir JSON</b> abre o conteúdo do teu SR no worker <code>ogapi-proxy</code>.  
+        O botão <b>Importar JSON</b> preenche automaticamente todos os campos (classe, techs, LF, etc).
+      </p>
+    </section>
+
+        <section class="block">
+      <h2>3) Configurações do Jogador</h2>
+
+      <div class="grid g3">
+        <label class="field">
+          <span>Classe do jogador</span>
+          <select id="player-class">
+            <option value="0">Coletor</option>
+            <option value="1">General</option>
+            <option value="2">Descobridor</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Classe da Aliança</span>
+          <select id="alliance-class">
+            <option value="0">Nenhuma</option>
+            <option value="1">Traders</option>
+            <option value="2">Guerreiros</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Velocidade do Universo (override opcional)</span>
+          <input id="universe-speed-override" type="number" min="1" step="1" placeholder="deixa vazio para usar por missão"/>
+        </label>
+      </div>
+
+      <div class="grid g4">
+        <label class="field">
+          <span>Motor de Combustão (115)</span>
+          <input id="tech-combustion" type="number" min="0" max="50" value="0"/>
+        </label>
+        <label class="field">
+          <span>Motor de Impulso (117)</span>
+          <input id="tech-impulse" type="number" min="0" max="50" value="0"/>
+        </label>
+        <label class="field">
+          <span>Motor Hiperespaço (118)</span>
+          <input id="tech-hyperspace" type="number" min="0" max="50" value="0"/>
+        </label>
+        <label class="field">
+          <span>Tec. Hiperespaço (114)</span>
+          <input id="tech-hyperspace-tech" type="number" min="0" max="50" value="0"/>
+        </label>
+      </div>
+
+      <div class="grid g3 lf-global-bonuses">
+        <label class="field">
+          <span>LF: General Engineering (%)</span>
+          <input id="lf-mechan-ge" type="number" min="0" max="100" step="1" value="0"/>
+        </label>
+        <label class="field">
+          <span>LF: Crystal Engines (%)</span>
+          <input id="lf-rocktal-ce" type="number" min="0" max="100" step="1" value="0"/>
+        </label>
+        <label class="field">
+          <span>LF: Cargo Pathfinder (%)</span>
+          <input id="lf-sp-cargohold" type="number" min="0" max="100" step="1" value="0"/>
+        </label>
+      </div>
+          </section>
+
+        <section class="block">
+      <h2>4) Bónus de Forma de Vida</h2>
+      <p class="hint">Preenche percentagens (ex.: 51.156). O import JSON preenche automaticamente.</p>
+      <table class="table">
+        <thead>
+          <tr><th>#</th><th>Nave</th><th>Velocidade (%)</th><th>Carga (%)</th><th>Deut. (%)</th></tr>
+        </thead>
+        <tbody id="lf-table-body">
+                  </tbody>
+      </table>
+    </section>
+
+        <section class="block">
+      <h2>5) Composição de Frota</h2>
+      <table class="table">
+        <thead>
+          <tr><th>#</th><th>Nave</th><th>Quantidade</th><th>Velocidade base</th></tr>
+        </thead>
+        <tbody id="fleet-table-body">
+                  </tbody>
+      </table>
+    </section>
+
+        <section class="block">
+      <h2>6) Coordenadas e Missão</h2>
+
+      <div class="grid g3">
+        <label class="field">
+          <span>Origem (G:S:P)</span>
+          <input id="coord-origin" placeholder="4:137:1"/>
+        </label>
+        <label class="field">
+          <span>Destino (G:S:P)</span>
+          <input id="coord-destiny" placeholder="4:137:15"/>
+        </label>
+        <label class="field">
+          <span>Missão</span>
+          <select id="mission-type">
+            <option value="peaceful">Amigáveis (Peaceful)</option>
+            <option value="war">Hostis (War)</option>
+            <option value="holding">Manter (Holding)</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid g3">
+        <label class="field">
+          <span>Velocidade de voo (%)</span>
+          <input id="speed-percent" type="number" min="1" max="100" step="1" value="100"/>
+        </label>
+        <div class="field readonly">
+          <span>Distância</span>
+          <div id="distance-read" class="mono">—</div>
+        </div>
+        <div class="field readonly">
+          <span>Velocidade mínima da frota</span>
+          <div id="minspeed-read" class="mono">—</div>
+        </div>
+      </div>
+
+      <div class="btns align-right">
+        <button id="recalc">Recalcular</button>
+      </div>
+    </section>
+
+        <section class="block">
+      <h2>7) Tempos de Voo</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>%</th>
+            <th>Duração</th>
+            <th>Consumo Deut.</th>
+            <th>Capacidade</th>
+          </tr>
+        </thead>
+        <tbody id="flight-times-table"></tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <div>© FlightCalc – calculadora de voo OGame (v2.0 - 16 naves)</div>
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/apiImporter.js"></script>
+</body>
+</html>
