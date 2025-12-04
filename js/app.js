@@ -137,7 +137,7 @@ const formatNumber = (num) => {
 };
 
 // =========================
-// 4. Lógica de População e Configuração do Universo (NOVO!)
+// 4. Lógica de População e Configuração do Universo
 // =========================
 
 function populateCommunitySelect() {
@@ -231,6 +231,41 @@ async function loadServersJson() {
     // Adicionar listeners
     $('select-community')?.addEventListener('change', handleUniverseChange);
     $('select-universe')?.addEventListener('change', handleUniverseChange);
+    
+    // =================================================================
+    // ✅ NOVO BLOCO: Selecionar e aplicar o primeiro universo por padrão.
+    // =================================================================
+    const firstLang = Object.keys(COMMUNITY_DATA).sort()[0];
+    if (firstLang && COMMUNITY_DATA[firstLang].length > 0) {
+        const firstUni = COMMUNITY_DATA[firstLang][0];
+        const commSelect = $('select-community');
+        const uniSelect = $('select-universe');
+        
+        // 1. Setar os dropdowns
+        commSelect.value = firstLang;
+        populateUniverseSelect(firstLang); // Popula o segundo seletor
+        
+        const uniValue = `${firstUni.language}_${firstUni.number}`;
+        uniSelect.value = uniValue;
+
+        // 2. Aplicar as configurações do universo
+        if (firstUni && firstUni.settings) {
+            const settings = firstUni.settings;
+            const config = {
+                speed: settings.fleetSpeedWar || 1,
+                fleetSpeedPeaceful: settings.fleetSpeedPeaceful,
+                fleetSpeedWar: settings.fleetSpeedWar,
+                fleetSpeedHolding: settings.fleetSpeedHolding,
+                galaxies: settings.universeSize,
+                systems: settings.numberOfSystems,
+                donutGalaxy: settings.donutGalaxy === 1,
+                donutSystem: settings.donutSystem === 1,
+            };
+            // Chama a função da API para atualizar o estado e a UI.
+            FlightCalc.setUniverseConfig(config);
+        }
+    }
+
 
   } catch (error) {
     console.error("Erro ao carregar servers.json:", error);
@@ -501,8 +536,7 @@ function recalc() {
   // Multiplicador de velocidade para a tabela
   const speedMultipliers = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10];
   
-  // Calcular consumo base (100% de velocidade)
-  const baseConsumption = totalConsumption;
+  // Consumo base (100% de velocidade) é totalConsumption
   
   // Bónus de classe de Aliança (Traders -50% deut)
   if (state.flight.allianceClass === 1) {
@@ -622,7 +656,7 @@ window.FlightCalc = {
 document.addEventListener("DOMContentLoaded", () => {
   initLfTable();
   initFleetTable();
-  loadServersJson(); // CARREGAMENTO DO SERVERS.JSON (NOVO)
+  loadServersJson(); // CARREGAMENTO DO SERVERS.JSON e Inicialização Automática
 
   $("recalc")?.addEventListener("click", recalc);
 
@@ -633,9 +667,9 @@ document.addEventListener("DOMContentLoaded", () => {
     "tech-impulse",
     "tech-hyperspace",
     "tech-hyperspace-tech",
-    "lf-mechan-ge", // NOVO
-    "lf-rocktal-ce", // NOVO
-    "lf-sp-cargohold", // NOVO
+    "lf-mechan-ge", 
+    "lf-rocktal-ce", 
+    "lf-sp-cargohold", 
     "coord-origin",
     "coord-destiny",
     "mission-type",
