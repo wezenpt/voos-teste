@@ -1,6 +1,6 @@
-// apiImporter.js - VERSÃO TOTALMENTE CORRIGIDA
+// apiImporter.js - VERSÃO TOTALMENTE CORRIGIDA E EXPANDIDA
 // Lê uma SR Key, vai ao worker Cloudflare (ogapi-proxy)
-// e importa: classe, classe da aliança, coords, techs, LF bónus por nave e LF bónus globais.
+// e importa: classe, techs, LF bónus por nave, e LF bónus globais.
 
 (() => {
   "use strict";
@@ -8,8 +8,7 @@
   // TEU WORKER CLOUDFLARE
   const WORKER_URL = "https://ogapi-proxy.m0nicker.workers.dev";
 
-  // ✅ ORDEM CORRIGIDA: Alinhada com BASE_SHIPS do app.js
-  // Índice no array DEVE corresponder ao índice em BASE_SHIPS/SHIP_LABELS
+  // ORDEM CORRIGIDA: Alinhada com BASE_SHIPS do app.js
   const SHIP_IDS = [
     202, // 0  - Cargueiro Pequeno
     203, // 1  - Cargueiro Grande
@@ -47,7 +46,8 @@
     if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
       return null;
     }
-    return parts;
+    // Retorna um objeto para coincidir com a estrutura de state.flight.origin/destiny em app.js
+    return { g: parts[0], s: parts[1], p: parts[2] }; 
   }
 
   async function fetchSR(token) {
@@ -80,21 +80,20 @@
     const state = window.FlightCalc.state;
     const g = data.generic || {};
 
-    // Classe do jogador (defensor por omissão; se não houver, tenta atacante)
+    // Classe do jogador
     const clsId = Number(
       g.defender_character_class_id ||
         g.attacker_character_class_id ||
         0
     );
 
-    // OGame IDs: 1 = Coletor, 2 = General, 3 = Descobridor
-    // Select values: 0 = Coletor, 1 = General, 2 = Descobridor
     let playerClass = 0;
     if (clsId === 1) playerClass = 0;      // Coletor
     else if (clsId === 2) playerClass = 1; // General
     else if (clsId === 3) playerClass = 2; // Descobridor
 
-    state.player.class = playerClass;
+    // ✅ CORREÇÃO: Usar state.flight.playerClass
+    state.flight.playerClass = playerClass; 
     const selPlayer = $("player-class");
     if (selPlayer) selPlayer.value = String(playerClass);
 
@@ -105,20 +104,16 @@
         0
     );
 
-    // OGame IDs vs Select values:
-    // 0 = Nenhuma → 0
-    // 2 = Traders → 1
-    // 1 = Guerreiros → 2
-    // 3 = Outros (tratamos como Guerreiros) → 2
     let allianceClass = 0;
     if (aId === 2) allianceClass = 1;           // Traders
     else if (aId === 1 || aId === 3) allianceClass = 2; // Guerreiros
 
-    state.player.allianceClass = allianceClass;
+    // ✅ CORREÇÃO: Usar state.flight.allianceClass
+    state.flight.allianceClass = allianceClass;
     const selAlliance = $("alliance-class");
     if (selAlliance) selAlliance.value = String(allianceClass);
 
-    // COORDENADAS: Origem = atacante, Destino = defensor (isto é uma suposição comum)
+    // COORDENADAS
     const originStr =
       g.attacker_planet_coordinates || g.defender_planet_coordinates || "";
     const destStr =
@@ -132,12 +127,14 @@
 
     const origin = parseCoords(originStr);
     if (origin) {
-      state.coords.origin = origin;
+      // ✅ CORREÇÃO: Usar state.flight.origin
+      state.flight.origin = origin; 
     }
 
     const dest = parseCoords(destStr);
     if (dest) {
-      state.coords.dest = dest;
+      // ✅ CORREÇÃO: Usar state.flight.destiny
+      state.flight.destiny = dest; 
     }
   }
 
@@ -170,7 +167,7 @@
     const combustion = getResearchLevel(data, 115);
     const impulse = getResearchLevel(data, 117);
     const hyperspace = getResearchLevel(data, 118);
-    const hyperTech = getResearchLevel(data, 114); // Tecnologia de Hiperespaço (ID 114)
+    const hyperTech = getResearchLevel(data, 114);
 
     const inComb = $("tech-combustion");
     if (inComb) inComb.value = combustion;
@@ -187,11 +184,52 @@
     // Atualiza state diretamente
     if (window.FlightCalc && window.FlightCalc.state) {
       const state = window.FlightCalc.state;
-      state.tech.combustion = combustion;
-      state.tech.impulse = impulse;
-      state.tech.hyperspace = hyperspace;
-      state.tech.hyperTech = hyperTech;
+      // ✅ CORREÇÃO: Usar state.techs e hyperTech -> hyperspaceTech
+      state.techs.combustion = combustion;
+      state.techs.impulse = impulse;
+      state.techs.hyperspace = hyperspace;
+      state.techs.hyperspaceTech = hyperTech;
     }
+  }
+  
+  // ----------------------------------------------------------
+  //            LF BÓNUS GLOBAIS (os 3 novos campos)
+  // ----------------------------------------------------------
+  
+  function getLFGlobalBonus(lfData, id) {
+    if (!lfData || !lfData.GlobalStatsBooster) return 0;
+    const bonus = lfData.GlobalStatsBooster[id];
+    // O API devolve o valor de 0 a 1 (e.g., 0.10 para 10%), devolvemos em %
+    return bonus ? (Number(bonus) * 100) : 0;
+  }
+
+  function applyLFGlobal(data) {
+    if (typeof window.FlightCalc === "undefined" || !window.FlightCalc.state) {
+      console.warn("[apiImporter] FlightCalc.state ainda não existe.");
+      return;
+    }
+
+    const state = window.FlightCalc.state;
+    const details = data.details || {};
+    const lfRoot = details.lifeformBonuses || {};
+
+    // 1. General Engineering (Speed) - ID 10
+    const lfMechanGE = getLFGlobalBonus(lfRoot, 10); 
+    const inLFMec = $("lf-mechan-ge");
+    if (inLFMec) inLFMec.value = lfMechanGE.toFixed(3);
+    state.lfGlobalBonuses.lfMechanGE = lfMechanGE;
+
+    // 2. Crystal Engines (Deut reduction) - ID 12
+    const lfRocktalCE = getLFGlobalBonus(lfRoot, 12);
+    const inLFRoc = $("lf-rocktal-ce");
+    if (inLFRoc) inLFRoc.value = lfRocktalCE.toFixed(3);
+    state.lfGlobalBonuses.lfRocktalCE = lfRocktalCE;
+
+    // 3. Cargo Pathfinder (Cargohold) - ID 42
+    const lfSpCargohold = getLFGlobalBonus(lfRoot, 42);
+    const inLFSpa = $("lf-sp-cargohold");
+    if (inLFSpa) inLFSpa.value = lfSpCargohold.toFixed(3);
+    state.lfGlobalBonuses.lfSpCargohold = lfSpCargohold;
   }
 
   // ----------------------------------------------------------
@@ -233,10 +271,12 @@
       // Converte de decimal para percentagem
       const speedPct = Number(src.speed || 0) * 100;
       const cargoPct = Number(src.cargo || 0) * 100;
-      const fuelPct = Number(src.fuel || 0) * 100;
+      const fuelPct = Number(src.fuel || 0) * 100; 
 
-      // Atualiza state
-      state.lfBonuses[index] = [speedPct, cargoPct, fuelPct];
+      // ✅ CORREÇÃO: Usar a estrutura de objeto esperada por app.js
+      state.lfBonuses[index].speed = speedPct;
+      state.lfBonuses[index].cargo = cargoPct;
+      state.lfBonuses[index].deut = fuelPct; 
 
       // Atualiza inputs HTML
       const speedInput = $(`lf-speed-${index}`);
@@ -249,46 +289,6 @@
       if (deutInput) deutInput.value = fuelPct.toFixed(3);
     });
   }
-  
-  // ----------------------------------------------------------
-  //            LF BÓNUS GLOBAIS (NOVOS)
-  // ----------------------------------------------------------
-
-  function applyLFGlobal(data) {
-    if (typeof window.FlightCalc === "undefined" || !window.FlightCalc.state) {
-      console.warn("[apiImporter] FlightCalc.state ainda não existe.");
-      return;
-    }
-
-    const state = window.FlightCalc.state;
-    const details = data.details || {};
-    const lfRoot = details.lifeformBonuses || {};
-    
-    // Mecaniq General Engineering (lfMechanGE) - Global Speed Bonus (velocidade em %)
-    const lfMechanGE = Number(lfRoot.MechaniqGeneralEngineering || 0);
-    
-    // Rock'tal Crystal Engines (lfRocktalCE) - Global Deut Reduction Bonus (consumo em %)
-    const lfRocktalCE = Number(lfRoot.RocktalCrystalEngines || 0);
-
-    // Spatium Cargo Hold (spCargohold) - Pathfinder Cargo Bonus (carga em %)
-    const lfSpCargohold = Number(lfRoot.SpatiumCargoHold || 0); 
-    
-    // Atualiza state
-    state.tech.lfMechanGE = lfMechanGE;
-    state.tech.lfRocktalCE = lfRocktalCE;
-    state.tech.lfSpCargohold = lfSpCargohold;
-
-    // Atualiza inputs HTML
-    const inGE = $("lf-mechan-ge");
-    if (inGE) inGE.value = lfMechanGE.toFixed(3);
-
-    const inCE = $("lf-rocktal-ce");
-    if (inCE) inCE.value = lfRocktalCE.toFixed(3);
-    
-    const inCH = $("lf-sp-cargohold");
-    if (inCH) inCH.value = lfSpCargohold.toFixed(3);
-  }
-
 
   // ----------------------------------------------------------
   //                     APLICAR TUDO
@@ -299,16 +299,16 @@
       console.log("[apiImporter] 🚀 Iniciando import...");
       
       applyGeneric(data);
-      console.log("[apiImporter] ✅ Dados genéricos aplicados");
+      console.log("[apiImporter] ✅ Dados genéricos aplicados (Classes, Coords)");
       
       applyResearch(data);
-      console.log("[apiImporter] ✅ Pesquisas aplicadas");
+      console.log("[apiImporter] ✅ Pesquisas de motores aplicadas");
       
+      applyLFGlobal(data); // NOVO
+      console.log("[apiImporter] ✅ Bónus de LF Globais aplicados");
+
       applyLFPerShip(data);
       console.log("[apiImporter] ✅ Bónus de LF por nave aplicados");
-
-      applyLFGlobal(data); // NOVO: Chamada para bónus LF Globais
-      console.log("[apiImporter] ✅ Bónus de LF globais aplicados");
 
 
       // Recalcula tudo
@@ -321,18 +321,14 @@
 
       // Relatório de sucesso
       const report = {
-        "Classe Jogador": ["Coletor", "General", "Descobridor"][window.FlightCalc.state.player.class],
-        "Classe Aliança": ["Nenhuma", "Traders", "Guerreiros"][window.FlightCalc.state.player.allianceClass],
-        "Coordenadas Origem": window.FlightCalc.state.coords.origin.join(":"),
-        "Coordenadas Destino": window.FlightCalc.state.coords.dest.join(":"),
-        "Motor Combustão": window.FlightCalc.state.tech.combustion,
-        "Motor Impulso": window.FlightCalc.state.tech.impulse,
-        "Motor Hiperespaço": window.FlightCalc.state.tech.hyperspace,
-        "Tec. Hiperespaço (114)": window.FlightCalc.state.tech.hyperTech,
-        "LF General Eng. (%)": window.FlightCalc.state.tech.lfMechanGE.toFixed(3),
-        "LF Crystal Eng. (%)": window.FlightCalc.state.tech.lfRocktalCE.toFixed(3),
-        "LF Cargo Pathfinder (%)": window.FlightCalc.state.tech.lfSpCargohold.toFixed(3),
-        "Bónus LF por Nave": window.FlightCalc.state.lfBonuses.filter(b => b[0] > 0 || b[1] > 0 || b[2] > 0).length + " naves"
+        "Classe Jogador": ["Coletor", "General", "Descobridor"][window.FlightCalc.state.flight.playerClass],
+        "Classe Aliança": ["Nenhuma", "Traders", "Guerreiros"][window.FlightCalc.state.flight.allianceClass],
+        "Motor Combustão": window.FlightCalc.state.techs.combustion,
+        "Tec. Hiperespaço": window.FlightCalc.state.techs.hyperspaceTech,
+        "Bónus LF Globais": `GE: ${window.FlightCalc.state.lfGlobalBonuses.lfMechanGE.toFixed(2)}% | CE: ${window.FlightCalc.state.lfGlobalBonuses.lfRocktalCE.toFixed(2)}% | CF: ${window.FlightCalc.state.lfGlobalBonuses.lfSpCargohold.toFixed(2)}%`,
+        "Naves c/ Bónus LF": window.FlightCalc.state.lfBonuses.filter(b => b.speed > 0 || b.cargo > 0 || b.deut > 0).length + " naves",
+        "Coordenadas Origem": `${window.FlightCalc.state.flight.origin.g}:${window.FlightCalc.state.flight.origin.s}:${window.FlightCalc.state.flight.origin.p}`,
+        "Coordenadas Destino": `${window.FlightCalc.state.flight.destiny.g}:${window.FlightCalc.state.flight.destiny.s}:${window.FlightCalc.state.flight.destiny.p}`,
       };
       
       console.table(report);
@@ -340,7 +336,7 @@
       
     } catch (err) {
       console.error("[apiImporter] ❌ Erro ao aplicar SR:", err);
-      alertError("Falha ao aplicar dados da SR. Vê a consola para mais detalhes.");
+      alertError("Falha ao aplicar dados da SR. Vê a consola para mais detalhes. (Provavelmente a SR não tem a informação completa)");
     }
   }
 
